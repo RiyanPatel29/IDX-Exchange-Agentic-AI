@@ -1,0 +1,25 @@
+flowchart TB
+    U([User on phone]) <-->|WhatsApp messages| WA[WhatsApp<br/>linked device via QR]
+    WA <--> CH
+
+    subgraph OC[OpenClaw Gateway - runs locally in WSL]
+        CH[WhatsApp Channel] --> SES[Session Manager<br/>one session per user]
+        SES --> ORC[Agent / Orchestrator<br/>LLM reads message + skills]
+        ORC --> SEL{Skill Selector}
+        SEL --> S1[Property Search]
+        SEL --> S2[Market Stats]
+        SEL --> S3[Recommendation]
+        SEL --> S4[RAG Knowledge]
+        SEL --> S5[Email Draft]
+        S1 & S2 & S3 & S4 & S5 --> TOOLS[Tool Execution<br/>typed async functions]
+        TOOLS --> MEM[Memory Update<br/>session state + vectors]
+        MEM --> FMT[Response Formatter]
+        FMT -->|reply| CH
+    end
+
+    TOOLS -->|parameterized SQL<br/>max 50 rows| DB[(MySQL idx_exchange)]
+    DB --- T1[[rets_property<br/>active listings]]
+    DB --- T2[[california_sold<br/>sold comps 2021-2025]]
+    TOOLS -->|embeddings + chat| OAI[OpenAI API]
+    S5 -.->|draft only| HUMAN{{Human approves}}
+    HUMAN -.-> MAIL[Gmail SMTP]

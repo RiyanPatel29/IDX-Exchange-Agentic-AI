@@ -1,0 +1,14 @@
+{
+  "name": "idx-openclaw-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "IDX Exchange multi-agent real estate assistant built on OpenClaw",
+  "scripts": {
+    "week1:demo": "tsx src/tools/demo.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
