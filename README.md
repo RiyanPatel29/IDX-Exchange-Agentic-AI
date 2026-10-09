@@ -1,6 +1,6 @@
 # IDX Multi-Agent Real Estate Assistant
 
-Multi-agent AI assistant built on [OpenClaw](https://github.com/openclaw/openclaw) for IDX Exchange. It answers California real estate questions over WhatsApp using two real MLS tables: `rets_property` (active listings) and `california_sold` (sold comps 2021-2025).
+Multi-agent AI assistant built on [OpenClaw](https://github.com/openclaw/openclaw) for IDX Exchange. It answers California real estate questions over WhatsApp using two real MLS tables: `rets_property` (55K active listings) and `california_sold` (98K sold comps). Runs on Claude via OpenClaw.
 
 Built by Riyan · IDX Exchange Agentic AI Engineering Intern, Fall 2026
 
@@ -10,7 +10,7 @@ Built by Riyan · IDX Exchange Agentic AI Engineering Intern, Fall 2026
 
 | Week | Module | Status | Deliverable |
 |---|---|---|---|
-| 0 | Environment Setup | In progress | [Setup guide](docs/WEEK0_SETUP.md), `scripts/verify_db.py`, `scripts/verify_keys.py` |
+| 0 | Environment Setup | Done | [Setup guide](docs/WEEK0_SETUP.md), [data notes](docs/DATA_NOTES.md), `scripts/import_db.sh`, `scripts/verify_db.py`, `scripts/verify_keys.py` |
 | 1 | Architecture Fundamentals | Done | [Architecture doc + workflow diagram](docs/ARCHITECTURE.md) |
 | 2 | NL Property Search | | |
 | 3 | Database Integration | | |
@@ -41,12 +41,12 @@ See [docs/WEEK0_SETUP.md](docs/WEEK0_SETUP.md). Short version (WSL Ubuntu):
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env            # fill in keys
-bash scripts/import_db.sh data/rets_property.sql data/california_sold.sql
+cp .env.example .env            # fill in keys (Anthropic + MySQL)
+bash scripts/create_db_user.sh  # DB + user, password read from .env
+bash scripts/import_db.sh       # imports data/*.sql in fast mode
 python scripts/verify_db.py
 python scripts/verify_keys.py
-npm install -g openclaw@latest && openclaw onboard --install-daemon
-openclaw channels login         # scan QR in WhatsApp > Linked Devices
+npm install -g openclaw@latest && openclaw onboard --install-daemon   # Anthropic key + WhatsApp QR
 ```
 
 ## Safety

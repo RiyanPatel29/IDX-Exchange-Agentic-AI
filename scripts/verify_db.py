@@ -1,7 +1,8 @@
-"""Week 0 check: confirm both MLS tables imported correctly.
+"""Week 0 check: confirm the MLS tables imported correctly.
 
 Usage:  python scripts/verify_db.py
-Reads MySQL settings from .env
+Reads MySQL settings from .env. Only prints counts and small summaries,
+never bulk data (handbook rule: max 50 rows per query).
 """
 import os
 import sys
@@ -11,16 +12,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# table -> (required?, key columns that must exist)
 CHECKS = {
-    "rets_property": [
+    "rets_property": (True, [
         "L_ListingID", "L_City", "L_SystemPrice", "L_Keyword2", "LM_Dec_3",
         "LM_Int2_3", "L_Status", "L_Remarks",
-    ],
-    "california_sold": [
+    ]),
+    "california_sold": (True, [
         "ListingKey", "ClosePrice", "CloseDate", "City", "LivingArea",
         "DaysOnMarket", "PropertyType",
-    ],
+    ]),
+    "rets_openhouse": (False, []),  # extra table shipped with the dumps, not in the handbook
 }
+
+
+def one(cur, sql, params=()):
+    cur.execute(sql, params)
+    return cur.fetchone()
 
 
 def main() -> int:
@@ -38,13 +46,15 @@ def main() -> int:
 
     cur = conn.cursor()
     ok = True
-    for table, cols in CHECKS.items():
+    for table, (required, cols) in CHECKS.items():
         try:
-            cur.execute(f"SELECT COUNT(*) FROM `{table}`")
-            count = cur.fetchone()[0]
-        except mysql.connector.Error as e:
-            print(f"[FAIL] {table}: {e}")
-            ok = False
+            count = one(cur, f"SELECT COUNT(*) FROM `{table}`")[0]
+        except mysql.connector.Error:
+            if required:
+                print(f"[FAIL] {table}: table not found")
+                ok = False
+            else:
+                print(f"[SKIP] {table}: not imported (optional)")
             continue
 
         cur.execute(
@@ -54,27 +64,38 @@ def main() -> int:
         )
         existing = {r[0] for r in cur.fetchall()}
         missing = [c for c in cols if c not in existing]
-
         status = "OK" if count > 0 and not missing else "FAIL"
-        ok = ok and status == "OK"
+        if required:
+            ok = ok and status == "OK"
         print(f"[{status}] {table}: {count:,} rows, {len(existing)} columns")
         if missing:
             print(f"       missing expected columns: {missing}")
 
-    # quick sanity peek (5 rows max, never bulk export)
     try:
+        print("\nTop cities in rets_property:")
         cur.execute(
             "SELECT L_City, COUNT(*) c FROM rets_property "
             "GROUP BY L_City ORDER BY c DESC LIMIT 5"
         )
-        print("\nTop cities in rets_property:")
         for city, c in cur.fetchall():
             print(f"  {city}: {c:,}")
-        cur.execute("SELECT MIN(CloseDate), MAX(CloseDate) FROM california_sold")
-        lo, hi = cur.fetchone()
+
+        # CloseDate is a VARCHAR, so check it as a real date
+        lo, hi, bad, future = one(cur, """
+            SELECT MIN(d), MAX(d),
+                   SUM(d IS NULL),
+                   SUM(d > CURDATE())
+            FROM (SELECT STR_TO_DATE(NULLIF(CloseDate, ''), '%Y-%m-%d') AS d
+                  FROM california_sold) t
+        """)
         print(f"\ncalifornia_sold close dates: {lo} to {hi}")
-    except mysql.connector.Error:
-        pass
+        if bad:
+            print(f"  note: {int(bad):,} rows have a blank/invalid CloseDate")
+        if future:
+            print(f"  note: {int(future):,} rows have a CloseDate in the future "
+                  "(data entry typos, filter with CloseDate <= CURDATE())")
+    except mysql.connector.Error as e:
+        print(f"(summary skipped: {e})")
 
     conn.close()
     print("\nAll good." if ok else "\nSome checks failed, see above.")

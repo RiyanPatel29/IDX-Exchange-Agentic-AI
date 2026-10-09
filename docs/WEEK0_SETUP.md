@@ -1,152 +1,144 @@
-# Week 0: Environment Setup (Windows)
+# Week 0: Environment Setup (Windows + WSL2)
 
-Goal from the handbook: both tables imported and verified, agent sends and receives a test WhatsApp message, all API keys confirmed working.
+Handbook deliverable: both tables imported and verified, agent sends and receives a test WhatsApp message, all API keys confirmed working.
 
-OpenClaw recommends **WSL2 (Ubuntu)** on Windows, so everything below runs inside Ubuntu, not PowerShell (except step 1).
+**Status: done** (Oct 2026). This guide is the path that actually worked on a Windows laptop.
 
-Tick each box as you go. Screenshot the 3 "proof" steps for your mentor.
+Rule of thumb: a prompt starting with `PS C:\` is **PowerShell** (Windows). A prompt like `patel@Riyansasus:~$` is **Ubuntu**. Everything runs in Ubuntu unless marked PowerShell.
 
 ---
 
-## 1. Install WSL2 + Ubuntu (PowerShell as Admin)
+## 1. WSL2 + Ubuntu (PowerShell as Admin)
 
 ```powershell
 wsl --install -d Ubuntu
+wsl --set-default Ubuntu          # needed if Docker Desktop is installed
 ```
 
-Restart, open **Ubuntu** from the Start menu, make a username + password. Everything after this is typed in the Ubuntu terminal.
+Then turn off WSLg (it breaks the systemd user session OpenClaw needs). Open `notepad $env:USERPROFILE\.wslconfig` and add:
 
-- [ ] Ubuntu terminal opens
+```
+[wsl2]
+guiApplications=false
+```
+
+Run `wsl --shutdown`, then open Ubuntu with `wsl -d Ubuntu --cd ~`.
 
 ## 2. Base tools (Ubuntu)
 
 ```bash
-sudo apt update && sudo apt install -y git curl build-essential python3-venv python3-pip mysql-server
-sudo service mysql start
-```
-
-Node (OpenClaw needs Node 24+):
-
-```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl build-essential unzip rsync pv python3-venv python3-pip mysql-server
 curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 source ~/.bashrc
 nvm install 24
-node -v   # should say v24.x or higher
+sudo loginctl enable-linger $USER
 ```
 
-- [ ] `git --version`, `node -v`, `mysql --version` all work
+Check: `git --version && node -v && npm -v` and `systemctl --user status` (should show a process tree, not an error).
 
-## 3. Clone this repo
+## 3. OpenClaw
 
 ```bash
-cd ~
-git clone https://github.com/<your-username>/idx-openclaw-assistant.git
-cd idx-openclaw-assistant
+npm install -g openclaw@latest --allow-scripts=openclaw,esbuild,koffi,protobufjs,@google/genai
+openclaw onboard --install-daemon
 ```
 
-## 4. Python env
+Wizard choices: QuickStart > **Anthropic > Anthropic API key** (console.anthropic.com, Default workspace scope) > keep the default model > channel **WhatsApp (QR link)**, install from npm, scan QR > "This is my personal phone number" > skip admin, web search and skills.
+
+The handbook's `git clone openclaw && npm install` is only for hacking on OpenClaw itself. The global install gives the same `openclaw` command.
 
 ```bash
+openclaw gateway install     # if status says "service unit not found"
+openclaw gateway status      # want: Runtime running, Connectivity probe ok
+openclaw doctor --fix
+```
+
+## 4. WhatsApp test
+
+Personal phone mode: open WhatsApp > chat with **yourself** ("You") > send `hi`. The agent replies there.
+
+- [x] **Proof 1:** screenshot of the agent replying
+
+## 5. Project + Python (Ubuntu)
+
+Work in a Linux folder (fast), keep the Windows clone for git:
+
+```bash
+cd ~/idx-openclaw-assistant
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-- [ ] `pip install` finishes with no errors
+## 6. Keys in `.env`
 
-## 5. API keys + .env
+Paste these **one line at a time** (pasting `read` lines as a block makes them swallow the next lines). Input stays hidden.
 
 ```bash
-cp .env.example .env
-nano .env
+read -sp "Paste Anthropic key: " A; echo
+read -sp "Type MySQL password: " M; echo
 ```
 
-Fill in:
+Then paste this block:
 
-- `OPENAI_API_KEY`: platform.openai.com > API keys (add a few dollars of credit or it will fail)
-- `MYSQL_PASSWORD`: pick one, and put the same value in `sql/create_user.sql` (replace `change_me`)
-- `EMAIL_USER` / `EMAIL_PASSWORD`: Gmail **App Password** (Google Account > Security > 2-Step Verification on > App passwords). Not your normal password.
+```bash
+cat > .env <<ENVEOF
+ANTHROPIC_API_KEY=$A
+OPENAI_API_KEY=
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=idx_user
+MYSQL_PASSWORD=$M
+MYSQL_DATABASE=idx_exchange
+EMAIL_USER=
+EMAIL_PASSWORD=
+ENVEOF
+unset A M
+```
 
-`.env` is already in `.gitignore`. Run `git status` and make sure it never shows up.
+`.env` is gitignored. Never put keys or passwords in tracked files.
 
-- [ ] `.env` filled, not tracked by git
+## 7. MySQL database + user
 
-## 6. Import the MLS data
+```bash
+sudo systemctl enable --now mysql
+bash scripts/create_db_user.sh          # reads MYSQL_PASSWORD from .env
+mysql -u idx_user -p -e "SHOW DATABASES;"   # should list idx_exchange
+```
 
-Get `rets_property.sql` and `california_sold.sql` from your IDX mentor. Copy them into `~/idx-openclaw-assistant/data/` (from Windows: `\\wsl$\Ubuntu\home\<you>\idx-openclaw-assistant\data`). The `data/` folder is gitignored so the dumps never get pushed.
+## 8. Import the MLS data
+
+Copy the dumps (`rets_property.sql`, `california_sold.sql`, `rets_openhouse.sql`) into `data/` (gitignored):
 
 ```bash
 mkdir -p data
-bash scripts/import_db.sh data/rets_property.sql data/california_sold.sql
+cp "/mnt/c/path/to/folder/"{rets_property,california_sold,rets_openhouse}.sql data/
+bash scripts/import_db.sh
 ```
 
-Heads up: the handbook says `idx_exchange` in the setup section but `boxgra5_cali` in the schema section. If a dump has its own `USE boxgra5_cali;` line, the tables land there instead. Check with `sudo mysql -e "SHOW DATABASES;"` and either set `MYSQL_DATABASE=boxgra5_cali` in `.env` or delete that `USE` line from the dump and re-import.
+`import_db.sh` turns on fast mode (batched commits). Without it the import ran at ~120 KiB/s (17 min for the 120 MB file); with it, ~6 MiB/s (under 2 min for the 629 MB file). It turns safe mode back on when done.
 
-Then verify:
+## 9. Verify
 
 ```bash
 python scripts/verify_db.py
-```
-
-- [ ] **Proof 1:** screenshot of `verify_db.py` showing both tables with row counts
-
-## 7. Confirm keys
-
-```bash
 python scripts/verify_keys.py
 ```
 
-- [ ] **Proof 2:** all three lines say `[OK]`
+- [x] **Proof 2:** `verify_db.py` shows both tables (rets_property 55,212 rows, california_sold 98,552 rows)
+- [x] **Proof 3:** `verify_keys.py` shows Anthropic OK and MySQL OK (OpenAI needed from Week 6, Gmail from Week 11)
 
-## 8. Install OpenClaw
+## 10. Push to GitHub
 
-```bash
-npm install -g openclaw@latest
-openclaw onboard --install-daemon
-```
-
-In the wizard: pick Anthropic > Anthropic API key (Default workspace scope) as the model provider, keep the gateway on local (127.0.0.1), and choose WhatsApp when it asks about channels (or do step 9 after).
+From Ubuntu, sync to the Windows clone (skips secrets, venv and data):
 
 ```bash
-openclaw gateway status
-openclaw health
-openclaw dashboard      # opens the Control UI at http://127.0.0.1:18789/
+rsync -av --exclude venv --exclude .env --exclude data --exclude node_modules \
+  ~/idx-openclaw-assistant/ "/mnt/c/Users/patel/OneDrive/Documents/Desktop/IDX/IDX-Exchange-Agentic-AI/"
 ```
 
-- [ ] Gateway status is running, dashboard opens
-
-Note: the handbook says `git clone openclaw` + `npm install`. That is only needed if you want to hack on OpenClaw itself. The global npm install is the supported way and gives you the same `openclaw` command.
-
-## 9. Link WhatsApp
-
-```bash
-openclaw channels login
-```
-
-Pick WhatsApp, then on your phone: WhatsApp > Settings > Linked Devices > Link a device > scan the QR in the terminal.
-
-New DMs need approval by default. Message the linked number from another phone (or have a friend do it), then:
-
-```bash
-openclaw pairing list whatsapp
-openclaw pairing approve whatsapp <code>
-```
-
-Send a test message out:
-
-```bash
-openclaw message send --target +1XXXXXXXXXX --message "Hello from my IDX OpenClaw agent"
-```
-
-- [ ] **Proof 3:** screenshot of WhatsApp showing the agent replying to you and the test message arriving
-
-## 10. Commit
-
-```bash
-git add .
-git commit -m "Week 0: environment setup, verify scripts"
-git push
-```
+Then in PowerShell in that folder: `git add .`, `git status` (check no `.env`), `git commit -m "..."`, `git push`.
 
 ---
 
@@ -154,14 +146,14 @@ git push
 
 | Problem | Fix |
 |---|---|
-| `mysql` says access denied for root | In WSL use `sudo mysql` (root uses socket auth) |
-| MySQL not running after reboot | `sudo service mysql start` |
-| OpenAI 429 / insufficient_quota | Add billing credit on platform.openai.com |
-| Gmail login fails | 2-Step Verification must be on, and use the 16-char app password with no spaces |
-| QR expired | Run `openclaw channels login` again, scan within ~20 sec |
-| `openclaw: command not found` | `source ~/.bashrc`, or check `npm bin -g` is on PATH |
-| Import super slow | Normal for the FULLTEXT index on `L_Remarks`, let it run |
 | `wsl` opens a `#` shell with no systemctl | Docker Desktop was the default distro. PowerShell: `wsl --set-default Ubuntu` |
-| Gateway status: ECONNREFUSED / user bus unavailable | `sudo loginctl enable-linger $USER`, add `[wsl2]` + `guiApplications=false` to `%USERPROFILE%\.wslconfig`, `wsl --shutdown`, reopen Ubuntu |
-| Gateway status: service unit not found | `openclaw gateway install` then `openclaw gateway status` |
-| Doctor warns memory search has no OpenAI key | Add `OPENAI_API_KEY` (step 5); OpenClaw uses it for memory recall |
+| `systemctl --user`: failed to connect to bus | `sudo loginctl enable-linger $USER`, set `guiApplications=false` in `.wslconfig`, `wsl --shutdown` |
+| Gateway: ECONNREFUSED / service unit not found | `openclaw gateway install`, then `openclaw gateway status` |
+| Doctor: memory search has no OpenAI key | Expected until `OPENAI_API_KEY` is added (Week 6) |
+| `wsl --shutdown` "not found" | That is a PowerShell command, not Ubuntu |
+| `mysql` access denied for root | Use `sudo mysql` (root uses socket auth in Ubuntu) |
+| MySQL not running after reboot | `sudo systemctl start mysql` |
+| Import very slow | Use `scripts/import_db.sh` (fast mode) |
+| Terminal looks garbled after a long import | Close the window and open a fresh Ubuntu one |
+| QR expired | `openclaw channels login`, scan within ~20 sec |
+| `openclaw: command not found` | `source ~/.bashrc` |
