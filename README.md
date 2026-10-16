@@ -12,8 +12,8 @@ Built by Riyan · IDX Exchange Agentic AI Engineering Intern, Fall 2026
 |---|---|---|---|
 | 0 | Environment Setup | Done | [Setup guide](docs/WEEK0_SETUP.md), [data notes](docs/DATA_NOTES.md), `scripts/import_db.sh`, `scripts/verify_db.py`, `scripts/verify_keys.py` |
 | 1 | Architecture Fundamentals | Done | [Architecture doc + workflow diagram](docs/ARCHITECTURE.md) |
-| 2 | NL Property Search | | |
-| 3 | Database Integration | | |
+| 2 | NL Property Search | Done | [Week 2 doc](docs/WEEK2_NL_SEARCH.md), `src/search/parsePropertyQuery.ts`, 17 passing tests, `skills/property-query-parser` |
+| 3 | Database Integration | Done | [Week 3 doc](docs/WEEK3_DB_INTEGRATION.md), `src/db/`, `npm run search`, `npm run comps`, 28 unit + 6 DB tests, `skills/property-search` |
 | 4 | Conversational Agent | | |
 | 5 | Market Analytics | | |
 | 6 | Embeddings & Vector Search | | |

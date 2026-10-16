@@ -5,6 +5,7 @@
 # data dumps (never commit MLS data)
 *.sql
 !sql/*.sql
+!tests/fixtures/*.sql
 data/
 
 # python
@@ -21,3 +22,6 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# bundles
+*.tgz
