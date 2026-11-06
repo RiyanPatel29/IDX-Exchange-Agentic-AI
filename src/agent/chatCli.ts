@@ -11,7 +11,8 @@
 // agent knows to answer the user itself.
 import { handleMessage, type Deps } from "./handleMessage.ts";
 import { FileSessionStore } from "../session/sessionStore.ts";
-import { searchActiveListings, getListingById } from "../db/listings.ts";
+import { searchActiveListings, getListingById, getSoldComps } from "../db/listings.ts";
+import { getMarketReport } from "../market/marketStats.ts";
 import { closePool } from "../db/pool.ts";
 
 function parseArgs(argv: string[]) {
@@ -29,7 +30,13 @@ function parseArgs(argv: string[]) {
 }
 
 export function defaultDeps(): Deps {
-  return { store: new FileSessionStore(), search: searchActiveListings, getListing: getListingById };
+  return {
+    store: new FileSessionStore(),
+    search: searchActiveListings,
+    getListing: getListingById,
+    market: getMarketReport,                                  // Week 5
+    recentSales: (city, opts) => getSoldComps(city, opts),    // Week 5
+  };
 }
 
 async function main() {

@@ -11,7 +11,8 @@
     "search": "tsx src/search/searchCli.ts",
     "comps": "tsx src/search/compsCli.ts",
     "week1:demo": "tsx src/tools/demo.ts",
-    "chat": "tsx src/agent/chatCli.ts"
+    "chat": "tsx src/agent/chatCli.ts",
+    "market": "tsx src/market/marketCli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

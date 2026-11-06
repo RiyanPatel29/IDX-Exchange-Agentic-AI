@@ -1,12 +1,18 @@
 // Week 4: one entry point for a WhatsApp message.
 // Loads the user's session, works out what they mean (new search, refine, more, details),
 // runs it, saves the session, and returns the reply text.
+// Week 5 adds market questions ("how's the Irvine condo market?", "compare Irvine vs Tustin").
 //
 // Database calls are passed in (deps) so tests can run without MySQL.
 import type { PropertyFilters } from "../search/parsePropertyQuery.ts";
 import type { SearchOptions } from "../db/queries.ts";
-import type { SearchResult, ListingDetail, ListingRow } from "../db/listings.ts";
-import { formatSearchResult, formatListingDetails, describeFilters } from "../db/format.ts";
+import type { SearchResult, ListingDetail, ListingRow, SoldRow } from "../db/listings.ts";
+import type { CompsOptions } from "../db/queries.ts";
+import { formatSearchResult, formatListingDetails, describeFilters, formatCompCard, prettyType } from "../db/format.ts";
+import type { MarketReport } from "../market/marketStats.ts";
+import type { MarketOptions } from "../market/marketQueries.ts";
+import { formatMarketReport, formatComparison } from "../market/formatMarket.ts";
+import { planMarket } from "./marketIntent.ts";
 import { interpretFollowUp, median } from "../session/followUp.ts";
 import { newSession, type SessionState, type SessionStore } from "../session/sessionStore.ts";
 
@@ -14,10 +20,13 @@ export interface Deps {
   store: SessionStore;
   search: (f: Partial<PropertyFilters>, opts: SearchOptions) => Promise<SearchResult>;
   getListing: (id: string) => Promise<ListingDetail | null>;
+  // Week 5 (optional so older tests don't need them)
+  market?: (place: string, opts: MarketOptions) => Promise<MarketReport>;
+  recentSales?: (city: string, opts: CompsOptions) => Promise<SoldRow[]>;
 }
 
 export interface Reply {
-  intent: string;      // reset | search | refine | page | details | need_city | none
+  intent: string;      // reset | search | refine | page | details | need_city | market | need_market_city | none
   text: string | null; // null = not a property message, the agent should answer itself
   changes?: string[];
 }
@@ -76,6 +85,13 @@ async function runSearch(
 export async function handleMessage(userId: string, text: string, deps: Deps): Promise<Reply> {
   const s = await deps.store.get(userId);
   const msg = String(text || "").trim();
+
+  // Week 5: market questions and market follow-ups go first
+  if (deps.market) {
+    const plan = planMarket(msg, s);
+    if (plan) return runMarket(s, deps, msg, plan);
+  }
+
   const action = interpretFollowUp(msg, s);
 
   switch (action.kind) {
@@ -133,6 +149,38 @@ export async function handleMessage(userId: string, text: string, deps: Deps): P
     default:
       return { intent: "none", text: null };
   }
+}
+
+async function runMarket(
+  s: SessionState, deps: Deps, msg: string, plan: NonNullable<ReturnType<typeof planMarket>>,
+): Promise<Reply> {
+  const opts: MarketOptions = { months: plan.months, type: plan.type, beds: plan.beds };
+  if (plan.kind === "need_market_city") {
+    s.lastMarket = { cities: [], months: plan.months, type: plan.type, beds: plan.beds };
+    remember(s, msg, "need_market_city");
+    await deps.store.save(s);
+    const what = plan.type ? `${prettyType(plan.type).toLowerCase()} ` : "";
+    return { intent: "need_market_city", text: `Which city's ${what}market should I look at?` };
+  }
+
+  let text: string;
+  if (plan.cities.length >= 2) {
+    const reports: MarketReport[] = [];
+    for (const c of plan.cities) reports.push(await deps.market!(c, opts));
+    text = formatComparison(reports);
+  } else {
+    const report = await deps.market!(plan.cities[0], opts);
+    text = formatMarketReport(report);
+    if (plan.wantsRecentSales && deps.recentSales && report.summary.soldCount) {
+      const comps = await deps.recentSales(plan.cities[0], { months: plan.months, type: plan.type, beds: plan.beds, limit: 3 });
+      if (comps.length) text += "\n\n*Most recent sales*\n" + comps.map(formatCompCard).join("\n\n");
+    }
+  }
+
+  s.lastMarket = { cities: plan.cities, months: plan.months, type: plan.type, beds: plan.beds };
+  remember(s, msg, "market");
+  await deps.store.save(s);
+  return { intent: "market", text };
 }
 
 export { newSession };

@@ -28,7 +28,7 @@ const TYPE_MAP: [RegExp, string][] = [
 
 // Fallback for queries that name a city without "in", e.g. "San Diego condos under 800k".
 // Week 3 can swap this for SELECT DISTINCT L_City from the database.
-const KNOWN_CITIES = [
+export const KNOWN_CITIES = [
   "Los Angeles", "San Diego", "San Jose", "San Francisco", "Irvine", "Palm Desert",
   "Newport Beach", "Pasadena", "Santa Monica", "Long Beach", "Anaheim", "Riverside",
   "Sacramento", "Fresno", "Oakland", "Bakersfield", "Santa Ana", "Huntington Beach",
