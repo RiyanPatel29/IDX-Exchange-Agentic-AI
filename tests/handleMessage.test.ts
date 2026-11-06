@@ -154,5 +154,5 @@ test("humanizeChange", () => {
   assert.equal(humanizeChange("pool → True"), "with pool");
   assert.equal(humanizeChange("removed maxPrice"), "no max price filter");
   assert.equal(humanizeChange("type → SingleFamilyResidence"), "Single Family Residence");
-  assert.equal(humanizeChange("sort → price_desc"), "sorted by price desc");
+  assert.equal(humanizeChange("sort → price_desc"), "sorted by highest price");
 });

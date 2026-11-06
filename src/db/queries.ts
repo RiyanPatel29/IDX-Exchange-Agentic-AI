@@ -46,12 +46,8 @@ export const LISTING_COLUMNS = `
   PoolPrivateYN, ViewYN, FireplaceYN, PhotoCount,
   LA1_UserFirstName, LA1_UserLastName, LO1_OrganizationName`;
 
-export function buildListingQuery(f: Partial<PropertyFilters>, opts: SearchOptions = {}): BuiltQuery {
-  const page = clampInt(opts.page, 1, 10_000, 1);
-  const limit = clampInt(opts.limit, 1, MAX_LIMIT, 10);
-  const offset = (page - 1) * limit;
-  const status = opts.status || "Active";
-
+// Shared WHERE for listing filters (Week 3 search, Week 6 semantic candidates)
+export function listingWhere(f: Partial<PropertyFilters>, status = "Active") {
   const where: string[] = ["(L_Status = ? OR StandardStatus = ?)"];
   const params: (string | number)[] = [status, status];
 
@@ -69,8 +65,14 @@ export function buildListingQuery(f: Partial<PropertyFilters>, opts: SearchOptio
     where.push(f.maxHoa === 0 ? "(AssociationFee IS NULL OR AssociationFee = 0)" : "AssociationFee <= ?");
     if (f.maxHoa !== 0) params.push(f.maxHoa);
   }
+  return { whereSql: where.join("\n    AND "), params };
+}
 
-  const whereSql = where.join("\n    AND ");
+export function buildListingQuery(f: Partial<PropertyFilters>, opts: SearchOptions = {}): BuiltQuery {
+  const page = clampInt(opts.page, 1, 10_000, 1);
+  const limit = clampInt(opts.limit, 1, MAX_LIMIT, 10);
+  const offset = (page - 1) * limit;
+  const { whereSql, params } = listingWhere(f, opts.status || "Active");
   const order = SORTS[opts.sort ?? "price_asc"] ?? SORTS.price_asc;
 
   // LIMIT/OFFSET are inlined after clampInt() guarantees they're safe integers.
@@ -146,5 +148,44 @@ export function buildListingByIdQuery(listingId: string) {
   WHERE L_ListingID = ?
   LIMIT 1`,
     params: [String(listingId)],
+  };
+}
+
+// Week 6: IDs of every listing that passes the hard filters (city, price, beds...).
+// Only IDs, used internally to narrow the semantic ranking. Capped so it stays cheap.
+export const MAX_CANDIDATES = 20_000;
+export function buildCandidateIdsQuery(f: Partial<PropertyFilters>, max = MAX_CANDIDATES) {
+  const { whereSql, params } = listingWhere(f);
+  const n = clampInt(max, 1, MAX_CANDIDATES, MAX_CANDIDATES);
+  return { sql: `SELECT L_ListingID FROM rets_property WHERE ${whereSql} LIMIT ${n}`, params };
+}
+
+// Week 6: fetch specific listings (with description) by ID, max 50
+export function buildListingsByIdsQuery(ids: string[]) {
+  const list = ids.slice(0, MAX_LIMIT).map(String);
+  if (!list.length) return null;
+  return {
+    sql: `SELECT ${LISTING_COLUMNS}, L_Remarks AS remarks
+  FROM rets_property
+  WHERE L_ListingID IN (${list.map(() => "?").join(", ")})`,
+    params: list,
+  };
+}
+
+// Week 6: pages of listings with descriptions for the embedding indexer (internal only)
+export function buildRemarksPageQuery(opts: { city?: string | null; afterId?: string; batch?: number }) {
+  const where = ["(L_Status = 'Active' OR StandardStatus = 'Active')", "L_Remarks IS NOT NULL", "L_Remarks <> ''"];
+  const params: (string | number)[] = [];
+  if (opts.city) { where.push("L_City = ?"); params.push(opts.city); }
+  if (opts.afterId != null) { where.push("L_ListingID > ?"); params.push(String(opts.afterId)); }
+  const n = clampInt(opts.batch, 1, 1000, 500);
+  return {
+    sql: `SELECT L_ListingID, L_City, L_Type_ AS type, L_Keyword2 AS beds, LM_Dec_3 AS baths,
+    LM_Int2_3 AS sqft, L_Remarks AS remarks
+  FROM rets_property
+  WHERE ${where.join(" AND ")}
+  ORDER BY L_ListingID
+  LIMIT ${n}`,
+    params,
   };
 }

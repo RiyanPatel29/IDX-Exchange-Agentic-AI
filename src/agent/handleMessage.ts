@@ -2,6 +2,7 @@
 // Loads the user's session, works out what they mean (new search, refine, more, details),
 // runs it, saves the session, and returns the reply text.
 // Week 5 adds market questions ("how's the Irvine condo market?", "compare Irvine vs Tustin").
+// Week 6 adds description search ("quiet street with a big backyard") via embeddings.
 //
 // Database calls are passed in (deps) so tests can run without MySQL.
 import type { PropertyFilters } from "../search/parsePropertyQuery.ts";
@@ -13,6 +14,9 @@ import type { MarketReport } from "../market/marketStats.ts";
 import type { MarketOptions } from "../market/marketQueries.ts";
 import { formatMarketReport, formatComparison } from "../market/formatMarket.ts";
 import { planMarket } from "./marketIntent.ts";
+import { descriptiveTerms, type SemanticResult } from "../semantic/semanticSearch.ts";
+import { formatSemanticResult } from "../semantic/formatSemantic.ts";
+import { hasSearch } from "../session/sessionStore.ts";
 import { interpretFollowUp, median } from "../session/followUp.ts";
 import { newSession, type SessionState, type SessionStore } from "../session/sessionStore.ts";
 
@@ -23,6 +27,8 @@ export interface Deps {
   // Week 5 (optional so older tests don't need them)
   market?: (place: string, opts: MarketOptions) => Promise<MarketReport>;
   recentSales?: (city: string, opts: CompsOptions) => Promise<SoldRow[]>;
+  // Week 6 (optional: only set when an embedding index exists)
+  semantic?: (text: string, f: Partial<PropertyFilters>, opts: { page: number; limit: number }) => Promise<SemanticResult>;
 }
 
 export interface Reply {
@@ -49,7 +55,10 @@ export function humanizeChange(c: string): string {
   if (key === "pool" || key === "hasView") return val === "True" ? `with ${LABELS[key]}` : `no ${LABELS[key]}`;
   if (key === "type") return val.replace(/([a-z])([A-Z])/g, "$1 $2");
   if (key === "beds" || key === "baths") return `${val}+ ${LABELS[key]}`;
-  if (key === "sort") return `sorted by ${val.replace("_", " ")}`;
+  if (key === "sort") {
+    const names: Record<string, string> = { price_asc: "lowest price", price_desc: "highest price", newest: "newest", sqft_desc: "biggest" };
+    return `sorted by ${names[val] ?? val}`;
+  }
   return `${LABELS[key] ?? key} ${val}`;
 }
 
@@ -67,9 +76,20 @@ function remember(s: SessionState, text: string, intent: string) {
   s.history.push({ at: new Date().toISOString(), text: text.slice(0, 200), intent });
 }
 
+// Runs whichever kind of search the session is in (set s.mode / s.semanticText first)
 async function runSearch(
   s: SessionState, deps: Deps, filters: Partial<PropertyFilters>, page: number,
 ): Promise<string> {
+  if (s.mode === "semantic" && s.semanticText && deps.semantic) {
+    const r = await deps.semantic(s.semanticText, filters, { page, limit: s.limit });
+    s.filters = filters;
+    s.page = r.page;
+    s.totalPages = r.listings.length ? r.totalPages : 0;
+    s.lastResultIds = r.listings.map((l) => String(l.L_ListingID));
+    s.lastResultStart = (r.page - 1) * r.limit + 1;
+    if (r.listings.length) s.shown = shownStats(r.listings);
+    return formatSemanticResult(r, filters, s.semanticText);
+  }
   const r = await deps.search(filters, { page, limit: s.limit, sort: s.sort });
   s.mode = "structured";
   s.semanticText = null;
@@ -101,7 +121,7 @@ export async function handleMessage(userId: string, text: string, deps: Deps): P
     }
 
     case "page": {
-      if (!s.filters.city) return { intent: "need_city", text: "Which city should I search?" };
+      if (!s.filters.city && s.mode !== "semantic") return { intent: "need_city", text: "Which city should I search?" };
       if (s.totalPages && action.page > s.totalPages) {
         return { intent: "page", text: `That's everything for ${describeFilters(s.filters)} (${s.totalPages} ${s.totalPages === 1 ? "page" : "pages"}). Try "cheaper", "any price" or another city.` };
       }
@@ -126,9 +146,24 @@ export async function handleMessage(userId: string, text: string, deps: Deps): P
     }
 
     case "search": {
+      const sortChanged = action.sort !== s.sort || action.changes.some((c) => c.startsWith("sort"));
       s.sort = action.sort;
       const intent = action.refined ? "refine" : "search";
-      if (!action.filters.city) {
+
+      // Week 6: descriptive words ("quiet", "backyard", "remodeled") switch on description search
+      const desc = deps.semantic ? descriptiveTerms(msg, action.filters.city) : [];
+      if (!action.refined) {
+        s.mode = desc.length ? "semantic" : "structured";
+        s.semanticText = desc.length ? msg : null;
+      } else if (desc.length) {
+        s.semanticText = s.mode === "semantic" && s.semanticText ? `${s.semanticText}; ${msg}` : msg;
+        s.mode = "semantic";
+      } else if (sortChanged) {
+        s.mode = "structured"; // an explicit sort means plain filter order
+        s.semanticText = null;
+      }
+
+      if (!action.filters.city && s.mode !== "semantic") {
         // Park the filters and ask. The next message ("Irvine") fills in the city.
         s.filters = action.filters;
         s.totalPages = 0;
@@ -146,8 +181,20 @@ export async function handleMessage(userId: string, text: string, deps: Deps): P
       return { intent, text: out, changes: action.changes };
     }
 
-    default:
+    default: {
+      // Week 6: "only ones with a big backyard" / "something quiet near a park" add to the description search
+      const desc = deps.semantic ? descriptiveTerms(msg, s.filters.city) : [];
+      const homeTalk = /\b(with|has|have|having|ones?|homes?|houses?|condos?|places?|something|anything|listings?|near|walk(ing|able)?|close\s+to|quiet|yard|backyard|kitchen|garage|remodeled|renovated|updated|modern|style)\b/i;
+      if (desc.length && homeTalk.test(msg) && (hasSearch(s) || /\b(home|house|condo|place|listing)s?\b/i.test(msg))) {
+        s.semanticText = s.mode === "semantic" && s.semanticText ? `${s.semanticText}; ${msg}` : msg;
+        s.mode = "semantic";
+        const out = await runSearch(s, deps, s.filters, 1);
+        remember(s, msg, "semantic");
+        await deps.store.save(s);
+        return { intent: "semantic", text: out };
+      }
       return { intent: "none", text: null };
+    }
   }
 }
 

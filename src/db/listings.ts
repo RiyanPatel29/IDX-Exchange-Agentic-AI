@@ -2,6 +2,7 @@
 import { query } from "./pool.ts";
 import {
   buildListingQuery, buildCompsQuery, buildCompsSummaryQuery, buildListingByIdQuery,
+  buildCandidateIdsQuery, buildListingsByIdsQuery, buildRemarksPageQuery,
   type SearchOptions, type CompsOptions,
 } from "./queries.ts";
 import type { PropertyFilters } from "../search/parsePropertyQuery.ts";
@@ -69,4 +70,26 @@ export async function getListingById(listingId: string): Promise<ListingDetail |
   const q = buildListingByIdQuery(listingId);
   const [row] = await query<ListingDetail>(q.sql, q.params);
   return row ?? null;
+}
+
+// Week 6: ids that pass the hard filters (internal, for semantic ranking)
+export async function getCandidateIds(filters: Partial<PropertyFilters>): Promise<string[]> {
+  const q = buildCandidateIdsQuery(filters);
+  const rows = await query<{ L_ListingID: string }>(q.sql, q.params);
+  return rows.map((r) => String(r.L_ListingID));
+}
+
+// Week 6: listings by id with their descriptions (max 50)
+export async function getListingsByIds(ids: string[]): Promise<ListingDetail[]> {
+  const q = buildListingsByIdsQuery(ids);
+  return q ? query<ListingDetail>(q.sql, q.params) : [];
+}
+
+export interface RemarksRow {
+  L_ListingID: string; L_City: string | null; type: string | null;
+  beds: number | null; baths: number | null; sqft: number | null; remarks: string | null;
+}
+export async function getRemarksPage(opts: { city?: string | null; afterId?: string; batch?: number }): Promise<RemarksRow[]> {
+  const q = buildRemarksPageQuery(opts);
+  return query<RemarksRow>(q.sql, q.params);
 }

@@ -194,7 +194,8 @@ export function interpretFollowUp(text: string, s: SessionState): FollowUp {
   if (followCity && !parsed.city) filters.city = followCity;
   applyRelativeAndRemovals(text, filters, s, parsed);
   const changes = diffFilters(s.filters, filters);
-  if (sort && sort !== s.sort) changes.push(`sort → ${sort}`);
+  // in description mode results are ranked by match, so any sort request is a change
+  if (sort && (sort !== s.sort || s.mode === "semantic")) changes.push(`sort → ${sort}`);
 
   if (!changes.length) {
     // Nothing we understood as a search change. Let the agent answer normally.

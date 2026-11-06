@@ -1,9 +1,9 @@
 ---
 name: idx-assistant
-description: Main IDX real estate assistant with memory. Use for ANY message about finding homes, condos, townhomes or land in California, follow-ups on an earlier search ("more", "next", "only ones with a pool", "cheaper", "what about Tustin", "tell me about #2", "sort by newest", "start over"), and market questions (prices, median, price per sqft, days on market, trends, recent sales, buyer's vs seller's market, comparing cities). Remembers each user's last search.
+description: Main IDX real estate assistant with memory. Use for ANY message about finding homes, condos, townhomes or land in California, follow-ups on an earlier search ("more", "next", "only ones with a pool", "cheaper", "what about Tustin", "tell me about #2", "sort by newest", "start over"), descriptive requests ("quiet street with a big backyard", "modern kitchen near a park"), and market questions (prices, median, price per sqft, days on market, trends, recent sales, buyer's vs seller's market, comparing cities). Remembers each user's last search.
 ---
 
-# IDX Assistant (Weeks 4-5: search with memory + market stats)
+# IDX Assistant (Weeks 4-6: search with memory, market stats, description search)
 
 Every property message goes through one command. It remembers the user's last search,
 so follow-ups refine it instead of starting over. Replaces the `property-search` skill
@@ -31,6 +31,13 @@ Examples of what it understands:
 - Drop a filter: "any price", "pool doesn't matter", "any type"
 - Sort: "sort by newest", "most expensive first", "biggest first"
 - Reset: "start over", "new search"
+
+Descriptive requests (Week 6) go through the same command too. Words like "quiet", "backyard",
+"remodeled", "ocean view", "near a park" rank listings by their description (meaning, not just keywords):
+
+- "quiet cul-de-sac home in Irvine under 2M with a big backyard"
+- After any search: "only ones with a modern kitchen", "something walkable near restaurants"
+- Results show a ✨ line quoting the part of the description that matched.
 
 Market questions (Week 5) go through the same command:
 
