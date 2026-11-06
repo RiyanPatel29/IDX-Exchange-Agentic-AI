@@ -1,6 +1,6 @@
 // Week 3: turn rows into short "property cards" that read well on WhatsApp.
 // WhatsApp uses *bold*, so cards use that instead of markdown headings.
-import type { ListingRow, SoldRow, CompsSummary, SearchResult } from "./listings.ts";
+import type { ListingRow, SoldRow, CompsSummary, SearchResult, ListingDetail } from "./listings.ts";
 import type { PropertyFilters } from "../search/parsePropertyQuery.ts";
 
 const money = (n: number | null | undefined) =>
@@ -88,4 +88,18 @@ export function formatCompsSummary(city: string, s: CompsSummary): string {
     `${s.soldCount.toLocaleString("en-US")} ${s.soldCount === 1 ? "home" : "homes"} sold · avg ${money(s.avgClosePrice)}`,
     `avg ${money(s.avgPricePerSqft)}/sqft · ${s.avgDom ?? "?"} days on market · ${s.listToClosePct ?? "?"}% of list price`,
   ].join("\n");
+}
+
+// Week 4: longer card for "tell me about #2"
+export function formatListingDetails(l: ListingDetail, index?: number): string {
+  const card = formatListingCard(l, index);
+  const lines = [card];
+  if (l.sqft && l.price) lines.push(`📏 ${money(l.price / l.sqft)}/sqft`);
+  const agent = [l.LA1_UserFirstName, l.LA1_UserLastName].filter(Boolean).join(" ");
+  if (agent || l.LO1_OrganizationName) {
+    lines.push(`👤 Listed by ${[agent, l.LO1_OrganizationName].filter(Boolean).join(", ")}`);
+  }
+  const remarks = (l.remarks || "").replace(/\s+/g, " ").trim();
+  if (remarks) lines.push("", `📝 ${remarks.length > 600 ? remarks.slice(0, 597).trimEnd() + "..." : remarks}`);
+  return lines.join("\n");
 }

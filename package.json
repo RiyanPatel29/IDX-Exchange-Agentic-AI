@@ -10,7 +10,8 @@
     "parse": "tsx src/search/cli.ts",
     "search": "tsx src/search/searchCli.ts",
     "comps": "tsx src/search/compsCli.ts",
-    "week1:demo": "tsx src/tools/demo.ts"
+    "week1:demo": "tsx src/tools/demo.ts",
+    "chat": "tsx src/agent/chatCli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

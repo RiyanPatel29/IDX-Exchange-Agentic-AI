@@ -1,7 +1,7 @@
 // Week 3: run the searches against MySQL.
 import { query } from "./pool.ts";
 import {
-  buildListingQuery, buildCompsQuery, buildCompsSummaryQuery,
+  buildListingQuery, buildCompsQuery, buildCompsSummaryQuery, buildListingByIdQuery,
   type SearchOptions, type CompsOptions,
 } from "./queries.ts";
 import type { PropertyFilters } from "../search/parsePropertyQuery.ts";
@@ -60,4 +60,13 @@ export async function getCompsSummary(city: string, opts: CompsOptions = {}): Pr
   const q = buildCompsSummaryQuery(city, opts);
   const [row] = await query<Omit<CompsSummary, "months">>(q.sql, q.params);
   return { ...row, soldCount: Number(row?.soldCount ?? 0), months: q.months };
+}
+
+// Week 4: full details for one listing (used by "tell me about #2")
+export interface ListingDetail extends ListingRow { remarks: string | null }
+
+export async function getListingById(listingId: string): Promise<ListingDetail | null> {
+  const q = buildListingByIdQuery(listingId);
+  const [row] = await query<ListingDetail>(q.sql, q.params);
+  return row ?? null;
 }

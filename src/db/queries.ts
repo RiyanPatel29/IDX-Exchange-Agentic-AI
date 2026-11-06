@@ -137,3 +137,14 @@ export function buildCompsSummaryQuery(city: string, opts: CompsOptions = {}) {
   WHERE ${whereSql}`;
   return { sql, params, months };
 }
+
+// Week 4: one listing with its description, for "tell me about #2"
+export function buildListingByIdQuery(listingId: string) {
+  return {
+    sql: `SELECT ${LISTING_COLUMNS}, L_Remarks AS remarks
+  FROM rets_property
+  WHERE L_ListingID = ?
+  LIMIT 1`,
+    params: [String(listingId)],
+  };
+}
