@@ -14,7 +14,8 @@
     "chat": "tsx src/agent/chatCli.ts",
     "market": "tsx src/market/marketCli.ts",
     "embed:index": "tsx src/semantic/indexCli.ts",
-    "semantic": "tsx src/semantic/semanticCli.ts"
+    "semantic": "tsx src/semantic/semanticCli.ts",
+    "recommend": "tsx src/recommend/recommendCli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -14,6 +14,7 @@ import { FileSessionStore } from "../session/sessionStore.ts";
 import { searchActiveListings, getListingById, getSoldComps } from "../db/listings.ts";
 import { getMarketReport } from "../market/marketStats.ts";
 import { liveSemantic } from "../semantic/semanticDeps.ts";
+import { liveRecDeps } from "../recommend/recommend.ts";
 import { closePool } from "../db/pool.ts";
 
 function parseArgs(argv: string[]) {
@@ -37,6 +38,7 @@ export function defaultDeps(): Deps {
     getListing: getListingById,
     market: getMarketReport,                                  // Week 5
     recentSales: (city, opts) => getSoldComps(city, opts),    // Week 5
+    rec: liveRecDeps(),                                       // Week 7
     semantic: liveSemantic(),                                 // Week 6 (undefined until the index is built)
   };
 }

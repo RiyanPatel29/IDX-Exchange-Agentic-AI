@@ -1,5 +1,5 @@
 -- FAKE sample rows for local testing only (not real MLS data).
--- Same column names/types as the real tables, just the columns Weeks 3-6 use.
+-- Same column names/types as the real tables, just the columns Weeks 3-7 use.
 DROP TABLE IF EXISTS rets_property;
 CREATE TABLE rets_property (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -51,3 +51,13 @@ INSERT INTO california_sold VALUES
  (3005,2500000,DATE_FORMAT(CURDATE() - INTERVAL 5 MONTH,'%Y-%m-%d'),2600000,2600000,50,'Residential','SingleFamilyResidence',1000,4,3,2000,'Tustin','92782','5 Tustin Sold','A B','Coast Realty','Buyer Co'),
  (3006,4200,DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH,'%Y-%m-%d'),4200,4200,5,'ResidentialLease','Condominium',1000,2,2,2000,'Tustin','92780','6 Tustin Lease','A B','Coast Realty','Buyer Co'),
  (3007,1,DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH,'%Y-%m-%d'),900000,900000,5,'Residential','Condominium',1000,2,2,2000,'Tustin','92780','7 Tustin Typo','A B','Coast Realty','Buyer Co');
+
+-- Week 7: three more 92618 condo sales ($850, $900, $950 per sqft). With sale 2001 ($787) that's
+-- 4 sales, median $875/sqft, so 1 Test Ln ($1,150,000 / 1,450 sqft = $793/sqft) is ~9% below.
+-- Irvine condos overall (5 sales incl. 7 Test Ln below) median $850/sqft.
+-- Plus an earlier sale of 7 Test Ln itself (ListingKey 1007 = L_ListingID '1007') for the sold-history join.
+INSERT INTO california_sold VALUES
+ (4001,1275000,DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH,'%Y-%m-%d'),1260000,1260000,8,'Residential','Condominium',1500,3,2,2014,'Irvine','92618','20 Sold St','A B','Sample Realty','Buyer Co'),
+ (4002,1350000,DATE_FORMAT(CURDATE() - INTERVAL 3 MONTH,'%Y-%m-%d'),1350000,1350000,12,'Residential','Condominium',1500,3,2,2016,'Irvine','92618','21 Sold St','A B','Sample Realty','Buyer Co'),
+ (4003,1425000,DATE_FORMAT(CURDATE() - INTERVAL 4 MONTH,'%Y-%m-%d'),1400000,1400000,20,'Residential','Condominium',1500,3,2,2018,'Irvine','92618','22 Sold St','A B','Sample Realty','Buyer Co'),
+ (1007,1100000,DATE_FORMAT(CURDATE() - INTERVAL 6 MONTH,'%Y-%m-%d'),1125000,1125000,25,'Residential','Condominium',1500,3,2,2018,'Irvine','92612','7 Test Ln','Gus Vo','Sample Realty','Buyer Co');

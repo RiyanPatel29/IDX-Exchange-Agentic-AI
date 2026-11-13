@@ -17,7 +17,7 @@ Built by Riyan · IDX Exchange Agentic AI Engineering Intern, Fall 2026
 | 4 | Conversational Agent | Done | [Week 4 doc](docs/WEEK4_SESSION_MEMORY.md), `src/session/`, `src/agent/`, `npm run chat` (more / refine / details / new city / reset), `skills/idx-assistant` |
 | 5 | Market Analytics | Done | [Week 5 doc](docs/WEEK5_MARKET_STATS.md), `src/market/`, `npm run market` (medians, $/sqft, DOM, sale-to-list, inventory, trend, compare) |
 | 6 | Embeddings & Vector Search | Done | [Week 6 doc](docs/WEEK6_SEMANTIC_SEARCH.md), `src/semantic/`, `npm run embed:index`, `npm run semantic` (Gemini or OpenAI embeddings, hybrid SQL + vector ranking) |
-| 7 | Recommendation Engine | | |
+| 7 | Recommendation Engine | Done | [Week 7 doc](docs/WEEK7_RECOMMENDATIONS.md), `src/recommend/`, `npm run recommend` (fit + value vs sold comps + freshness + likes, "homes like #2", explanations) |
 | 8 | RAG Pipeline | | |
 | 9 | Multi-Agent Orchestration | | |
 | 10 | WhatsApp Layer | | |
@@ -37,6 +37,7 @@ src/session/     Week 4 per-user session memory + follow-up rules
 src/agent/       Week 4-6 message router (npm run chat), market routing
 src/market/      Week 5 market stats
 src/semantic/    Week 6 embeddings, vector store, hybrid search
+src/recommend/   Week 7 recommendation engine (scoring, likes, similar homes)
 tests/           unit tests (npm test) and DB tests (npm run test:db)
 sql/             DB/user setup (MLS dumps go in data/, which is gitignored)
 ```
@@ -63,6 +64,7 @@ npm install
 npm test && npm run test:db
 npm run -s chat -- --user me "3 bed condos in Irvine under 1.5M"
 npm run -s chat -- --user me "how's the Irvine condo market?"
+npm run -s chat -- --user me "best deals in Irvine under 1.5M"
 npm run embed:index -- --city Irvine && npm run -s chat -- --user me "quiet street with a big backyard in Irvine"
 cp -r skills/idx-assistant ~/.openclaw/workspace/skills/
 ```

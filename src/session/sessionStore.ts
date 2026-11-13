@@ -19,7 +19,7 @@ export interface ShownStats {
 export interface SessionState {
   userId: string;
   // Last search
-  mode: "structured" | "semantic";   // semantic = Week 6 description search
+  mode: "structured" | "semantic" | "recommend"; // semantic = Week 6, recommend = Week 7
   semanticText: string | null;       // the descriptive part of a semantic search
   filters: Partial<PropertyFilters>;
   sort: SortKey;
@@ -31,6 +31,13 @@ export interface SessionState {
   shown: ShownStats;
   // Week 5: last market question, so "what about Tustin" can compare markets too
   lastMarket: { cities: string[]; months: number; type: string | null; beds: number | null } | null;
+  // Week 7: recommendations and taste
+  recRanked: { id: string; score: number; reasons: string[] }[]; // ranked picks (max 50) for paging
+  recPoolSize: number;
+  recAnchor: { id: string; label: string } | null;  // set for "homes like #2"
+  liked: string[];                   // listing ids they liked (max 30)
+  disliked: string[];                // listing ids they passed on (max 50)
+  lastDetailId: string | null;       // last "tell me about #N", so "homes like this" works
   lastIntent: string | null;
   history: { at: string; text: string; intent: string }[]; // last 10 messages, for debugging
   updatedAt: number;
@@ -41,7 +48,8 @@ export function newSession(userId: string): SessionState {
     userId, mode: "structured", semanticText: null, filters: {}, sort: "price_asc",
     page: 1, limit: 5, lastResultIds: [], lastResultStart: 1, totalPages: 0,
     shown: { minPrice: null, maxPrice: null, medianSqft: null },
-    lastMarket: null, lastIntent: null, history: [], updatedAt: Date.now(),
+    lastMarket: null, recRanked: [], recPoolSize: 0, recAnchor: null, liked: [], disliked: [],
+    lastDetailId: null, lastIntent: null, history: [], updatedAt: Date.now(),
   };
 }
 
@@ -61,6 +69,11 @@ function expired(s: SessionState, ttlMin: number): boolean {
   return Date.now() - s.updatedAt > ttlMin * 60_000;
 }
 
+// When a session expires the search is forgotten, but likes/dislikes are kept (Week 7)
+function expiredKeepTaste(old: SessionState, id: string): SessionState {
+  return { ...newSession(id), liked: old.liked ?? [], disliked: old.disliked ?? [] };
+}
+
 function cleanId(userId: string): string {
   return String(userId || "me").trim() || "me";
 }
@@ -72,7 +85,8 @@ export class MemorySessionStore implements SessionStore {
   async get(userId: string) {
     const id = cleanId(userId);
     const s = this.map.get(id);
-    return s && !expired(s, this.ttlMin) ? structuredClone(s) : newSession(id);
+    if (!s) return newSession(id);
+    return expired(s, this.ttlMin) ? expiredKeepTaste(s, id) : structuredClone(s);
   }
   async save(s: SessionState) { this.map.set(s.userId, structuredClone({ ...s, updatedAt: Date.now() })); }
   async clear(userId: string) { this.map.delete(cleanId(userId)); }
@@ -94,7 +108,7 @@ export class FileSessionStore implements SessionStore {
     const id = cleanId(userId);
     try {
       const s = JSON.parse(await readFile(this.file(id), "utf8")) as SessionState;
-      if (expired(s, this.ttlMin)) return newSession(id);
+      if (expired(s, this.ttlMin)) return expiredKeepTaste(s, id);
       return { ...newSession(id), ...s, userId: id }; // fill in fields added later
     } catch {
       return newSession(id); // no file yet, or unreadable: start fresh
